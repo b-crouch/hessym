@@ -69,6 +69,14 @@ class SymbolicHessian:
 
     def __repr__(self):
         return np.array_repr(self.hessian)
+    
+    def get_parameters(self):
+        """
+        Retrieves sorted list of Hessian parameters
+        """
+        params = list(self.parameters)
+        params.sort(key = lambda param: str(param))
+        return params
         
     def apply_pbc(self, relative_positions, box_dim):
         """
@@ -218,30 +226,18 @@ class SymbolicHessian:
             symbol_mapping (dict): A dictionary mapping each parameter in `self.parameters` to a numerical value (if `symbol_mapping` was passed as an argument, simply repeats the mapping)
         """
         assert true_hessian is not None or symbol_mapping is not None, "Must pass symbol mapping information to reconstruct Hessian"
-        reconstructed_hessian = np.zeros(self.hessian.shape)
 
         if true_hessian is not None:
             parameter_indices_map = self.get_parameter_indices(verbose=verbose)
             symbol_mapping = {}
-            
             for param in parameter_indices_map:
                 val = true_hessian[parameter_indices_map[param]]
                 symbol_mapping[param] = val
-            atom_idx = 0
-            for pos in tqdm(self.positions, disable=not verbose, desc="Populating Hessian"):
-                hessian_submatrices, _, insertion_idx = self.get_submatrices_for_all_neighbors(pos)
-                # TODO: Refactor – Sympy.subs is convenient, but slow
-                reconstructed_hessian[3*atom_idx:3*atom_idx+3, insertion_idx] = sympy.Matrix(hessian_submatrices).subs(symbol_mapping)
-                atom_idx += 1
-
+            
         elif symbol_mapping is not None:
             assert all(param in symbol_mapping for param in self.parameters), f"Reconstruction requires numeric values for all independent parameters: {self.parameters}"
-            atom_idx = 0
-            for pos in tqdm(self.positions, disable=not verbose, desc="Populating Hessian"):
-                hessian_submatrices, _, insertion_idx = self.get_submatrices_for_all_neighbors(pos)
-                # TODO: Refactor – Sympy.subs is convenient, but slow
-                reconstructed_hessian[3*atom_idx:3*atom_idx+3, insertion_idx] = sympy.Matrix(hessian_submatrices).subs(symbol_mapping)
-                atom_idx += 1
+        
+        reconstructed_hessian = np.array(sympy.Matrix(self.hessian).xreplace(symbol_mapping), dtype=float)
 
         # Apply translational invariance condition. Treat the self-interaction as an independent term and set it equal to the negative sum over 
         # the submatrices of all other atoms
@@ -254,7 +250,8 @@ class SymbolicHessian:
             reconstructed_hessian[3*atom_idx:3*atom_idx+3, 3*atom_idx:3*atom_idx+3] = -trans_invariance_sum
 
         self.recon = reconstructed_hessian
-        print("Hessian reconstruction attribute updated")
+        if verbose:
+            print("Hessian reconstruction attribute updated")
         return reconstructed_hessian, symbol_mapping
     
     def compute_free_energy(self, atomic_mass, T, true_hessian=None, symbol_mapping=None, mode="classical", verbose=False):
@@ -277,7 +274,8 @@ class SymbolicHessian:
         if true_hessian is None and symbol_mapping is None:
             reconstructed_hessian = np.copy(self.recon)
         else:
-            reconstructed_hessian, _ = np.copy(self.reconstruct_hessian(true_hessian, symbol_mapping, verbose=verbose))
+            recon_hessian, mapping =  self.reconstruct_hessian(true_hessian, symbol_mapping, verbose=verbose)
+            reconstructed_hessian = np.copy(recon_hessian)
         kB = 8.617343e-5  # eV/K
         hbar = 6.58211899e-16 # eV s
         Na = 6.02214179e23    # mol^-1

@@ -7,7 +7,7 @@ The symmetry group of a crystal places constraints on the allowed numerical valu
 in the matrix. If these independent parameters are identified, we need only explicitly compute a subset of
 force constants in order to fully populate the Hessian.
 
-`hessym` is a lightweight package for performing symmetry analysis and efficient approximations of Helmholtz free energy, phonon dispersions, and phonon density of states via reconstructed Hessians.
+`hessym` is a lightweight package for performing symmetry analysis and efficient approximations of Helmholtz free energy, phonon dispersions, and phonon density of states via reconstructed Hessians with integrated interfaces for the VASP and LAMMPS simulation packages.
 
 Installation:
 ```
